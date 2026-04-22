@@ -57,8 +57,8 @@ def datasets_to_df(datasets: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-st.subheader("Export Datasets")
-st.caption("Fetches all datasets via the Observe v1 API: `GET /v1/dataset`")
+st.subheader("Export Dataset (Legacy)")
+st.caption("Fetches all dataset via the Observe v1 API: `GET /v1/dataset` (legacy)")
 
 with st.form("credentials_form"):
     col1, col2, col3 = st.columns([1, 0.5, 2])
