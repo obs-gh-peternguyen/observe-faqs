@@ -11,6 +11,7 @@ page = st.navigation(
         "Tools": [
             st.Page("site/tools/export_monitor_list.py", title="Export Monitor List", icon=":material/monitor:"),
             st.Page("site/tools/export_monitor_details.py", title="Export Monitor Details", icon=":material/notifications:"),
+            st.Page("site/tools/export_all_monitor_details.py", title="Export All Monitor Details", icon=":material/table_rows:"),
             st.Page("site/tools/export_dataset.py", title="Export Dataset", icon=":material/dataset:"),
             st.Page("site/tools/export_dataset_details.py", title="Export Dataset Details", icon=":material/schema:"),
         ],
