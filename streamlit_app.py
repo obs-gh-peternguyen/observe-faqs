@@ -14,6 +14,7 @@ page = st.navigation(
             st.Page("site/tools/export_all_monitor_details.py", title="Export All Monitor Details", icon=":material/table_rows:"),
             st.Page("site/tools/export_dataset.py", title="Export Dataset", icon=":material/dataset:"),
             st.Page("site/tools/export_dataset_details.py", title="Export Dataset Details", icon=":material/schema:"),
+            st.Page("site/tools/base64_decoder.py", title="Base64 Decoder", icon=":material/lock_open:"),
         ],
     },
     position="sidebar",
