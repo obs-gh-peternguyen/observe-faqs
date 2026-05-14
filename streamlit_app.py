@@ -1,3 +1,6 @@
+from otel_setup import init_otel
+init_otel()
+
 import streamlit as st
 
 st.set_page_config(page_title="Observe FAQs", page_icon=":material/visibility:", layout="wide")

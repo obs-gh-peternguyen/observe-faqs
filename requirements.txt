@@ -2,3 +2,12 @@ streamlit
 requests
 pandas
 pyyaml
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-tornado
+opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-logging
+opentelemetry-instrumentation-threading
+opentelemetry-instrumentation-urllib3
+opentelemetry-instrumentation-system-metrics

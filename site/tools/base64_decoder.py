@@ -45,5 +45,5 @@ if st.session_state.get("decoded_output"):
         navigator.clipboard.writeText(text);
         </script>
         """
-        st.components.v1.html(js, height=0)
+        st.html(js)
         st.success("Copied to clipboard!")
