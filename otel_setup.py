@@ -1,4 +1,5 @@
 import os
+import socket
 import streamlit as st
 
 def _get_secret(key, default=None):
@@ -63,12 +64,15 @@ def init_otel():
     from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
     from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
+    hostname = socket.gethostname()
     resource = Resource.create({
         "service.name": service_name,
         "service.instance.id": "streamlit",
         "service.namespace": "streamlit-community-cloud",
         "service.version": service_version,
         "deployment.environment.name": deployment_env,
+        "host.name": hostname,
+        "host.id": hostname,
     })
 
     trace_headers = {
