@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export Dataset — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>.container { max-width: 1100px; margin: 0 auto; }</style>
+</head>
+<body>
+<div class="container">
+  <h1>Export Dataset <span style="font-size:.75em;color:#8080a0">(Legacy)</span></h1>
+  <p class="caption">Fetches all datasets via the Observe v1 API: <code>GET /v1/dataset</code> (legacy)</p>
+
+  <div class="card">
+    <div class="row row-3">
+      <div>
+        <label>Customer ID</label>
+        <input type="text" id="customerId" placeholder="1234567890" />
+      </div>
+      <div>
+        <label>Domain <span style="color:#555770">(optional)</span></label>
+        <input type="text" id="domain" placeholder="abc" />
+      </div>
+      <div>
+        <label>Bearer Token</label>
+        <input type="password" id="token" placeholder="Paste Observe token here" />
+      </div>
+    </div>
+    <button class="primary full" id="fetchBtn">List Datasets</button>
+  </div>
+
+  <div class="alert" id="alertBox"></div>
+
+  <div id="results" style="display:none">
+    <div class="toolbar">
+      <button class="secondary" id="csvBtn">⬇ Download CSV</button>
+      <input type="text" class="search-input" id="searchInput" placeholder="Filter…" />
+      <span class="count" id="countLabel"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-col="id">ID ↕</th>
+            <th data-col="workspaceId">Workspace ID ↕</th>
+            <th data-col="name">Name ↕</th>
+            <th data-col="kind">Kind ↕</th>
+            <th data-col="labelField">Label Field ↕</th>
+            <th data-col="primaryKey">Primary Key ↕</th>
+            <th data-col="urlPath">URL Path ↕</th>
+            <th data-col="createdBy">Created By ↕</th>
+            <th data-col="createdDate">Created Date ↕</th>
+            <th data-col="updatedBy">Updated By ↕</th>
+            <th data-col="updatedDate">Updated Date ↕</th>
+          </tr>
+        </thead>
+        <tbody id="datasetBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  let allDatasets = [], sortCol = null, sortAsc = true, filterText = '';
+
+  function getN(obj, path) { return path.split('.').reduce((o, k) => o?.[k], obj); }
+
+  function parseDatasets(raw) {
+    return (Array.isArray(raw) ? raw : []).map(d => {
+      const pk = getN(d, 'config.primaryKey');
+      return {
+        id:          getN(d, 'meta.id') || '',
+        workspaceId: getN(d, 'meta.workspaceId') || '',
+        customerId:  getN(d, 'meta.customerId') || '',
+        name:        getN(d, 'config.name') || '',
+        labelField:  getN(d, 'config.labelField') || '',
+        primaryKey:  Array.isArray(pk) ? pk.join(', ') : (pk || ''),
+        urlPath:     getN(d, 'state.urlPath') || '',
+        kind:        getN(d, 'state.kind') || '',
+        createdBy:   getN(d, 'state.createdBy') || '',
+        createdDate: isoToStr(getN(d, 'state.createdDate')),
+        updatedBy:   getN(d, 'state.updatedBy') || '',
+        updatedDate: isoToStr(getN(d, 'state.updatedDate')),
+      };
+    });
+  }
+
+  function filtered() {
+    if (!filterText) return allDatasets;
+    const q = filterText.toLowerCase();
+    return allDatasets.filter(d => Object.values(d).some(v => String(v).toLowerCase().includes(q)));
+  }
+
+  function renderTable() {
+    const rows = filtered();
+    document.getElementById('countLabel').textContent = `${rows.length} result${rows.length !== 1 ? 's' : ''}${filterText ? ' (filtered)' : ''}`;
+    document.getElementById('datasetBody').innerHTML = rows.map(d => `
+      <tr>
+        <td class="mono">${esc(d.id)}</td>
+        <td class="mono">${esc(d.workspaceId)}</td>
+        <td>${esc(d.name)}</td>
+        <td class="dim">${esc(d.kind)}</td>
+        <td class="dim">${esc(d.labelField)}</td>
+        <td class="dim">${esc(d.primaryKey)}</td>
+        <td class="dim" style="font-size:.8em">${esc(d.urlPath)}</td>
+        <td class="dim">${esc(d.createdBy)}</td>
+        <td class="dim" style="white-space:nowrap">${esc(d.createdDate)}</td>
+        <td class="dim">${esc(d.updatedBy)}</td>
+        <td class="dim" style="white-space:nowrap">${esc(d.updatedDate)}</td>
+      </tr>`).join('');
+  }
+
+  document.getElementById('fetchBtn').addEventListener('click', async () => {
+    const cid = document.getElementById('customerId').value.trim();
+    const dom = document.getElementById('domain').value.trim();
+    const tok = document.getElementById('token').value.trim();
+    if (!cid || !tok) { showAlert('error', 'Customer ID and Bearer Token are required.'); return; }
+    hideAlert();
+    document.getElementById('fetchBtn').disabled = true;
+    document.getElementById('fetchBtn').textContent = 'Fetching…';
+    try {
+      const resp = await fetch(`https://${buildObserveHost(cid, dom)}/v1/dataset`, { headers: observeAuthHeaders(cid, tok) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+      const body = await resp.json();
+      const raw = typeof body === 'object' && !Array.isArray(body) ? (body.data || []) : body;
+      allDatasets = parseDatasets(raw);
+      if (!allDatasets.length) { showAlert('info', 'No datasets found.'); document.getElementById('results').style.display = 'none'; }
+      else { renderTable(); document.getElementById('results').style.display = 'block'; }
+    } catch (e) { showAlert('error', e.message); }
+    document.getElementById('fetchBtn').disabled = false;
+    document.getElementById('fetchBtn').textContent = 'List Datasets';
+  });
+
+  document.getElementById('searchInput').addEventListener('input', e => {
+    filterText = e.target.value;
+    if (allDatasets.length) renderTable();
+  });
+
+  document.getElementById('csvBtn').addEventListener('click', () => {
+    if (!allDatasets.length) return;
+    const cols = ['id', 'workspaceId', 'customerId', 'name', 'labelField', 'primaryKey', 'urlPath', 'kind', 'createdBy', 'createdDate', 'updatedBy', 'updatedDate'];
+    const hdrs = ['ID', 'Workspace ID', 'Customer ID', 'Name', 'Label Field', 'Primary Key', 'URL Path', 'Kind', 'Created By', 'Created Date', 'Updated By', 'Updated Date'];
+    downloadBlob(buildCSVString(hdrs, allDatasets.map(d => cols.map(k => d[k]))), 'observe_datasets.csv', 'text/csv');
+  });
+
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+      allDatasets.sort((a, b) => {
+        const av = (a[col] || '').toLowerCase(), bv = (b[col] || '').toLowerCase();
+        return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+      });
+      renderTable();
+    });
+  });
+</script>
+</body>
+</html>

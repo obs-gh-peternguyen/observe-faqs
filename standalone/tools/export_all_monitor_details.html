@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export All Monitor Details — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>.container { max-width: 1200px; margin: 0 auto; }</style>
+</head>
+<body>
+<div class="container">
+  <h1>Export All Monitor Details</h1>
+  <p class="caption">Two-step export: fetch the monitor list, then retrieve full details for each. Uses <code>GET /v1/monitors</code> and <code>GET /v1/monitors/{id}</code></p>
+
+  <div class="card">
+    <div class="row row-3">
+      <div>
+        <label>Customer ID</label>
+        <input type="text" id="customerId" placeholder="1234567890" />
+      </div>
+      <div>
+        <label>Domain <span style="color:#555770">(optional)</span></label>
+        <input type="text" id="domain" placeholder="abc" />
+      </div>
+      <div>
+        <label>Bearer Token</label>
+        <input type="password" id="token" placeholder="Paste Observe token here" />
+      </div>
+    </div>
+    <button class="primary full" id="fetchListBtn">Fetch Monitor List</button>
+  </div>
+
+  <div class="alert" id="alertBox"></div>
+
+  <div id="step1Results" style="display:none">
+    <div class="toolbar">
+      <button class="primary" id="fetchDetailsBtn">⟳ Fetch All Details</button>
+      <span class="count" id="listCount"></span>
+    </div>
+    <div class="table-wrap" id="listTable"></div>
+  </div>
+
+  <div id="step2Section" style="display:none">
+    <div class="progress-wrap">
+      <div class="progress-label" id="progressLabel">Fetching…</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+
+  <div id="step2Results" style="display:none">
+    <div class="toolbar">
+      <button class="secondary" id="csvBtn">⬇ Download CSV</button>
+      <button class="secondary" id="jsonBtn">⬇ Download JSON</button>
+      <span class="count" id="detailCount"></span>
+    </div>
+    <div class="table-wrap" id="detailTable"></div>
+  </div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  let monitorList = [], detailsMap = {};
+  let cid = '', dom = '', tok = '';
+
+  function renderListTable() {
+    const hdrs = ['Name', 'Monitor ID', 'Description', 'Type', 'Status', 'Last Modified'];
+    const rows = monitorList.map(m => `<tr>
+      <td>${esc(m.name)}</td><td class="mono">${esc(m.id)}</td>
+      <td class="dim sm">${esc(m.description)}</td>
+      <td>${typeBadge(m.ruleKind)}</td>
+      <td><span class="status-badge ${m.disabled ? 'stat-disabled' : 'stat-enabled'}">${m.disabled ? 'Disabled' : 'Enabled'}</span></td>
+      <td class="dim sm" style="white-space:nowrap">${esc(nanoToDatetime(m.monitorVersion))}</td>
+    </tr>`).join('');
+    document.getElementById('listTable').innerHTML = `<table><thead><tr>${hdrs.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderDetailTable() {
+    const hdrs = ['Name', 'Monitor ID', 'Description', 'Type', 'Status', 'Last Modified', 'Destinations', 'POST'];
+    const rows = monitorList.map(m => {
+      const detail = detailsMap[m.id];
+      const postHTML = detail
+        ? `<div class="post-btns"><button class="btn-curl" data-mid="${esc(m.id)}">cURL</button><button class="btn-ps" data-mid="${esc(m.id)}">PS</button></div>`
+        : `<span class="dim sm">failed</span>`;
+      return `<tr>
+        <td>${esc(m.name)}</td><td class="mono">${esc(m.id)}</td>
+        <td class="dim sm">${esc(m.description)}</td>
+        <td>${typeBadge(m.ruleKind)}</td>
+        <td><span class="status-badge ${m.disabled ? 'stat-disabled' : 'stat-enabled'}">${m.disabled ? 'Disabled' : 'Enabled'}</span></td>
+        <td class="sm" style="white-space:nowrap;color:#a0a0b0">${esc(nanoToDatetime(m.monitorVersion))}</td>
+        <td>${destIcons((detail?.actionRules) || [])}</td>
+        <td>${postHTML}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('detailTable').innerHTML = `<table><thead><tr>${hdrs.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  document.getElementById('fetchListBtn').addEventListener('click', async () => {
+    cid = document.getElementById('customerId').value.trim();
+    dom = document.getElementById('domain').value.trim();
+    tok = document.getElementById('token').value.trim();
+    if (!cid || !tok) { showAlert('error', 'Customer ID and Bearer Token are required.'); return; }
+    hideAlert();
+    document.getElementById('fetchListBtn').disabled = true;
+    document.getElementById('fetchListBtn').textContent = 'Fetching…';
+    document.getElementById('step2Results').style.display = 'none';
+    try {
+      const resp = await fetch(`https://${buildObserveHost(cid, dom)}/v1/monitors`, { headers: observeAuthHeaders(cid, tok) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      monitorList = Array.isArray(data) ? data : [];
+      detailsMap = {};
+      if (!monitorList.length) { showAlert('info', 'No monitors found.'); document.getElementById('step1Results').style.display = 'none'; }
+      else {
+        document.getElementById('listCount').textContent = `${monitorList.length} monitor${monitorList.length !== 1 ? 's' : ''}`;
+        renderListTable();
+        document.getElementById('step1Results').style.display = 'block';
+      }
+    } catch (e) { showAlert('error', e.message); }
+    document.getElementById('fetchListBtn').disabled = false;
+    document.getElementById('fetchListBtn').textContent = 'Fetch Monitor List';
+  });
+
+  document.getElementById('fetchDetailsBtn').addEventListener('click', async () => {
+    if (!monitorList.length) return;
+    document.getElementById('fetchDetailsBtn').disabled = true;
+    document.getElementById('step2Section').style.display = 'block';
+    document.getElementById('step2Results').style.display = 'none';
+    const total = monitorList.length;
+    const fill  = document.getElementById('progressFill');
+    const label = document.getElementById('progressLabel');
+    const results = await Promise.allSettled(monitorList.map(m =>
+      fetch(`https://${buildObserveHost(cid, dom)}/v1/monitors/${m.id}`, { headers: observeAuthHeaders(cid, tok) })
+        .then(r => r.ok ? r.json() : null).catch(() => null)
+    ));
+    results.forEach((r, i) => {
+      detailsMap[monitorList[i].id] = r.status === 'fulfilled' ? r.value : null;
+      fill.style.width = `${Math.round(100 * (i + 1) / total)}%`;
+      label.textContent = `${i + 1}/${total} fetched…`;
+    });
+    label.textContent = 'Done!';
+    const failed = Object.values(detailsMap).filter(v => !v).length;
+    if (failed) showAlert('warning', `${failed} monitor(s) failed to fetch details.`);
+    else hideAlert();
+    renderDetailTable();
+    document.getElementById('detailCount').textContent = `${total - failed} fetched${failed ? `, ${failed} failed` : ''}`;
+    document.getElementById('step1Results').style.display = 'none';
+    document.getElementById('step2Results').style.display = 'block';
+    document.getElementById('step2Section').style.display = 'none';
+    document.getElementById('fetchDetailsBtn').disabled = false;
+  });
+
+  document.addEventListener('click', e => {
+    const btn = e.target;
+    const mid = btn.getAttribute('data-mid');
+    if (!mid || !detailsMap[mid]) return;
+    const text = btn.classList.contains('btn-curl') ? buildCurlCmd(detailsMap[mid], cid, dom, tok)
+               : btn.classList.contains('btn-ps')   ? buildPSCmd(detailsMap[mid], cid, dom, tok)
+               : null;
+    if (text) copyToClipboard(text, btn);
+  });
+
+  document.getElementById('csvBtn').addEventListener('click', () => {
+    const hdrs = ['Name', 'Monitor ID', 'Description', 'Type', 'Status', 'Last Modified', 'Destinations', 'GET Response (JSON)'];
+    const rows = monitorList.map(m => {
+      const detail = detailsMap[m.id];
+      const dests = ((detail?.actionRules) || []).map(r => r.definition?.type || 'Action').join(', ');
+      return [m.name, m.id, m.description, m.ruleKind, m.disabled ? 'Disabled' : 'Enabled', nanoToDatetime(m.monitorVersion), dests, detail ? JSON.stringify(detail) : ''];
+    });
+    downloadBlob(buildCSVString(hdrs, rows), 'observe_all_monitor_details.csv', 'text/csv');
+  });
+
+  document.getElementById('jsonBtn').addEventListener('click', () => {
+    downloadBlob(JSON.stringify(monitorList.map(m => detailsMap[m.id]).filter(Boolean), null, 2), 'observe_all_monitor_details.json', 'application/json');
+  });
+</script>
+</body>
+</html>

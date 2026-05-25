@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base64 Decoder — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>.container { max-width: 760px; margin: 0 auto; }</style>
+</head>
+<body>
+<div class="container">
+  <h1>Base64 Decoder</h1>
+  <p class="caption">Paste a base64-encoded string or an Observe copied dashboard to decode it.</p>
+
+  <div>
+    <label for="encodedInput">Encoded String</label>
+    <textarea id="encodedInput" placeholder="Paste base64-encoded string or Observe dashboard here..."></textarea>
+  </div>
+
+  <button class="primary full" id="decodeBtn">🔓 Decode</button>
+
+  <div class="alert" id="alertBox"></div>
+
+  <div class="output-section" id="outputSection">
+    <label>Decoded Output</label>
+    <div class="output-box">
+      <button class="copy-btn" id="copyBtn">Copy</button>
+      <pre id="outputPre"></pre>
+    </div>
+  </div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  const OBSERVE_START = "/* Observe!Start ";
+  const OBSERVE_END   = " Observe!End */";
+
+  document.getElementById('decodeBtn').addEventListener('click', () => {
+    const input = document.getElementById('encodedInput').value;
+    if (!input.trim()) { showAlert('warning', 'Paste a base64-encoded string first.'); return; }
+    hideAlert();
+    try {
+      let result;
+      if (input.includes(OBSERVE_START) && input.includes(OBSERVE_END)) {
+        const startIdx = input.indexOf(OBSERVE_START) + OBSERVE_START.length;
+        const endIdx   = input.indexOf(OBSERVE_END);
+        if (endIdx <= startIdx) throw new Error('Malformed Observe dashboard format.');
+        result = tryPrettyJson(decodeB64(input.slice(startIdx, endIdx).trim()));
+      } else {
+        result = tryPrettyJson(decodeB64(input.trim()));
+      }
+      document.getElementById('outputPre').textContent = result;
+      document.getElementById('outputSection').classList.add('show');
+    } catch (err) {
+      showAlert('error', `Failed to decode: ${err.message}`);
+      document.getElementById('outputSection').classList.remove('show');
+    }
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', e => {
+    copyToClipboard(document.getElementById('outputPre').textContent, e.target);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export Monitor Details — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>.container { max-width: 900px; margin: 0 auto; }</style>
+</head>
+<body>
+<div class="container">
+  <h1>Export Monitor Details</h1>
+  <p class="caption">Fetches a single monitor by ID and generates a curl command to recreate it: <code>GET /v1/monitors/{id}</code></p>
+
+  <div class="card">
+    <div class="row row-4">
+      <div>
+        <label>Customer ID</label>
+        <input type="text" id="customerId" placeholder="1234567890" />
+      </div>
+      <div>
+        <label>Domain <span style="color:#555770">(optional)</span></label>
+        <input type="text" id="domain" placeholder="abc" />
+      </div>
+      <div>
+        <label>Monitor ID</label>
+        <input type="text" id="monitorId" placeholder="12345678" />
+      </div>
+      <div>
+        <label>Bearer Token</label>
+        <input type="password" id="token" placeholder="Paste Observe token here" />
+      </div>
+    </div>
+    <button class="primary full" id="fetchBtn">Get Monitor</button>
+  </div>
+
+  <div class="alert" id="alertBox"></div>
+
+  <div id="results" style="display:none">
+    <div class="monitor-name" id="monitorName"></div>
+    <div class="meta-grid">
+      <div class="meta-cell"><div class="meta-label">Monitor ID</div><div class="meta-value" id="metaId"></div></div>
+      <div class="meta-cell"><div class="meta-label">Kind</div><div class="meta-value" id="metaKind"></div></div>
+      <div class="meta-cell"><div class="meta-label">Status</div><div class="meta-value" id="metaStatus"></div></div>
+      <div class="meta-cell"><div class="meta-label">Action Rules</div><div class="meta-value" id="metaActions" style="font-family:sans-serif;font-size:.85rem"></div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="json">GET /v1/monitors/{id}</button>
+      <button class="tab-btn" data-tab="curl">POST /v1/monitors (recreate)</button>
+    </div>
+    <div id="tab-json" class="tab-panel active">
+      <div class="code-wrap">
+        <button class="copy-btn" id="copyJson">Copy</button>
+        <pre id="jsonPre"></pre>
+      </div>
+    </div>
+    <div id="tab-curl" class="tab-panel">
+      <div class="code-wrap">
+        <button class="copy-btn" id="copyCurl">Copy</button>
+        <pre id="curlPre"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  let jsonText = '', curlText = '';
+
+  document.getElementById('fetchBtn').addEventListener('click', async () => {
+    const cid = document.getElementById('customerId').value.trim();
+    const dom = document.getElementById('domain').value.trim();
+    const mid = document.getElementById('monitorId').value.trim();
+    const tok = document.getElementById('token').value.trim();
+    if (!cid || !mid || !tok) { showAlert('error', 'Customer ID, Monitor ID, and Bearer Token are required.'); return; }
+    hideAlert();
+    document.getElementById('fetchBtn').disabled = true;
+    document.getElementById('fetchBtn').textContent = 'Fetching…';
+    try {
+      const resp = await fetch(`https://${buildObserveHost(cid, dom)}/v1/monitors/${mid}`, { headers: observeAuthHeaders(cid, tok) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      jsonText = JSON.stringify(data, null, 2);
+      curlText = buildCurlCmd(data, cid, dom, tok);
+      document.getElementById('monitorName').textContent = data.name || 'Unknown';
+      document.getElementById('metaId').textContent   = data.id || '';
+      document.getElementById('metaKind').textContent = data.ruleKind || '';
+      const statusEl = document.getElementById('metaStatus');
+      statusEl.textContent = data.disabled ? 'disabled' : 'enabled';
+      statusEl.className = `meta-value badge-${data.disabled ? 'disabled' : 'enabled'}-text`;
+      const rules = (data.actionRules || []).sort((a, b) => (ACTION_ORDER[a.definition?.type || ''] ?? 4) - (ACTION_ORDER[b.definition?.type || ''] ?? 4));
+      document.getElementById('metaActions').innerHTML = rules.length
+        ? rules.map(r => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(r.definition?.webhook?.url || '')}">${actionLabel(r)}</div>`).join('')
+        : '—';
+      document.getElementById('jsonPre').textContent = jsonText;
+      document.getElementById('curlPre').textContent = curlText;
+      document.getElementById('results').style.display = 'block';
+    } catch (e) { showAlert('error', e.message); }
+    document.getElementById('fetchBtn').disabled = false;
+    document.getElementById('fetchBtn').textContent = 'Get Monitor';
+  });
+
+  initTabs();
+  document.getElementById('copyJson').addEventListener('click', e => copyToClipboard(jsonText, e.target));
+  document.getElementById('copyCurl').addEventListener('click', e => copyToClipboard(curlText, e.target));
+</script>
+</body>
+</html>

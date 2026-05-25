@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export Monitor List — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>.container { max-width: 960px; margin: 0 auto; }</style>
+</head>
+<body>
+<div class="container">
+  <h1>Export Monitor List</h1>
+  <p class="caption">Fetches all monitors via the Observe v1 API: <code>GET /v1/monitors</code></p>
+
+  <div class="card">
+    <div class="row row-3">
+      <div>
+        <label>Customer ID</label>
+        <input type="text" id="customerId" placeholder="1234567890" />
+      </div>
+      <div>
+        <label>Domain <span style="color:#555770">(optional)</span></label>
+        <input type="text" id="domain" placeholder="abc" />
+      </div>
+      <div>
+        <label>Bearer Token</label>
+        <input type="password" id="token" placeholder="Paste Observe token here" />
+      </div>
+    </div>
+    <button class="primary full" id="fetchBtn">List Monitors</button>
+  </div>
+
+  <div class="alert" id="alertBox"></div>
+
+  <div id="results" style="display:none">
+    <div class="toolbar">
+      <button class="secondary" id="csvBtn">⬇ Download CSV</button>
+      <span class="count" id="countLabel"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-col="name">Name ↕</th>
+            <th data-col="id">Monitor ID ↕</th>
+            <th data-col="description">Description ↕</th>
+            <th data-col="ruleKind">Type ↕</th>
+            <th data-col="status">Status ↕</th>
+            <th data-col="monitorVersion">Last Modified ↕</th>
+          </tr>
+        </thead>
+        <tbody id="monitorBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  let monitorData = [], sortCol = null, sortAsc = true;
+
+  function renderTable() {
+    document.getElementById('countLabel').textContent = `${monitorData.length} result${monitorData.length !== 1 ? 's' : ''}`;
+    document.getElementById('monitorBody').innerHTML = monitorData.map(m => `
+      <tr>
+        <td>${esc(m.name)}</td>
+        <td class="mono">${esc(m.id)}</td>
+        <td style="color:#a0a0b0;font-size:.85em">${esc(m.description)}</td>
+        <td>${typeBadge(m.ruleKind)}</td>
+        <td><span class="badge-${m.disabled ? 'disabled' : 'enabled'}">${m.disabled ? 'Disabled' : 'Enabled'}</span></td>
+        <td style="font-size:.85em;color:#a0a0b0;white-space:nowrap">${esc(nanoToDatetime(m.monitorVersion))}</td>
+      </tr>`).join('');
+  }
+
+  document.getElementById('fetchBtn').addEventListener('click', async () => {
+    const cid = document.getElementById('customerId').value.trim();
+    const dom = document.getElementById('domain').value.trim();
+    const tok = document.getElementById('token').value.trim();
+    if (!cid || !tok) { showAlert('error', 'Customer ID and Bearer Token are required.'); return; }
+    hideAlert();
+    document.getElementById('fetchBtn').disabled = true;
+    document.getElementById('fetchBtn').textContent = 'Fetching…';
+    try {
+      const resp = await fetch(`https://${buildObserveHost(cid, dom)}/v1/monitors`, { headers: observeAuthHeaders(cid, tok) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      monitorData = Array.isArray(data) ? data : [];
+      if (!monitorData.length) { showAlert('info', 'No monitors found.'); document.getElementById('results').style.display = 'none'; }
+      else { renderTable(); document.getElementById('results').style.display = 'block'; }
+    } catch (e) { showAlert('error', e.message); }
+    document.getElementById('fetchBtn').disabled = false;
+    document.getElementById('fetchBtn').textContent = 'List Monitors';
+  });
+
+  document.getElementById('csvBtn').addEventListener('click', () => {
+    if (!monitorData.length) return;
+    const headers = ['Name', 'Monitor ID', 'Description', 'Monitor Type', 'Status', 'Last Modified'];
+    const rows = monitorData.map(m => [m.name, m.id, m.description, m.ruleKind, m.disabled ? 'Disabled' : 'Enabled', nanoToDatetime(m.monitorVersion)]);
+    downloadBlob(buildCSVString(headers, rows), 'observe_monitors.csv', 'text/csv');
+  });
+
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+      monitorData.sort((a, b) => {
+        let av = col === 'status' ? (a.disabled ? 'disabled' : 'enabled') : String(a[col] || '').toLowerCase();
+        let bv = col === 'status' ? (b.disabled ? 'disabled' : 'enabled') : String(b[col] || '').toLowerCase();
+        return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+      });
+      renderTable();
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Observe Tools</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0e1117;
+      color: #fafafa;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────────── */
+    nav {
+      width: 230px;
+      min-width: 230px;
+      background: #111420;
+      border-right: 1px solid #1e2130;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding-bottom: 1.5rem;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: 1.1rem 1rem 1rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fafafa;
+      border-bottom: 1px solid #1e2130;
+      margin-bottom: .5rem;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #6c63ff, #9f96ff);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .nav-group-label {
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #606080;
+      padding: .8rem 1rem .3rem;
+    }
+
+    nav a {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      padding: .45rem 1rem;
+      font-size: .875rem;
+      color: #a0a0b0;
+      text-decoration: none;
+      border-radius: 6px;
+      margin: 1px .5rem;
+      transition: background .12s, color .12s;
+      cursor: pointer;
+    }
+
+    nav a:hover { background: #1e2130; color: #fafafa; }
+    nav a.active { background: rgba(108,99,255,.18); color: #9f96ff; font-weight: 500; }
+
+    .nav-icon { font-size: .95rem; width: 1.2em; text-align: center; flex-shrink: 0; }
+
+    /* ── Main content ────────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 2.5rem 2rem;
+      overflow-y: auto;
+    }
+
+    #welcome h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: .5rem; }
+    #welcome .subtitle { color: #a0a0b0; font-size: .95rem; margin-bottom: 2rem; }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+
+    .welcome-card {
+      background: #1e2130;
+      border: 1px solid #2e3150;
+      border-radius: 8px;
+      padding: 1.1rem 1.2rem;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .welcome-card:hover { border-color: #6c63ff; background: #222540; }
+
+    .welcome-card .wc-icon { font-size: 1.5rem; margin-bottom: .6rem; }
+    .welcome-card .wc-title { font-size: .95rem; font-weight: 600; margin-bottom: .3rem; }
+    .welcome-card .wc-desc { font-size: .8rem; color: #8080a0; line-height: 1.4; }
+
+    .section-label {
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #6c63ff;
+      margin: 1.5rem 0 .6rem;
+    }
+    .section-label:first-of-type { margin-top: 0; }
+
+    iframe {
+      flex: 1;
+      border: none;
+      display: none;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-icon">👁</div>
+    Observe Tools
+  </div>
+
+  <a href="#" data-src="" class="active" id="home-link">
+    <span class="nav-icon">🏠</span> Home
+  </a>
+
+  <div class="nav-group-label">Monitors</div>
+  <a href="#" data-src="tools/export_monitor_list.html">
+    <span class="nav-icon">📋</span> Export Monitor List
+  </a>
+  <a href="#" data-src="tools/export_monitor_details.html">
+    <span class="nav-icon">🔔</span> Export Monitor Details
+  </a>
+  <a href="#" data-src="tools/export_all_monitor_details.html">
+    <span class="nav-icon">📊</span> Export All Monitor Details
+  </a>
+
+  <div class="nav-group-label">Datasets</div>
+  <a href="#" data-src="tools/export_dataset.html">
+    <span class="nav-icon">🗄️</span> Export Dataset
+  </a>
+
+  <div class="nav-group-label">Tools</div>
+  <a href="#" data-src="tools/import_file.html">
+    <span class="nav-icon">⬆️</span> Import File
+  </a>
+  <a href="#" data-src="tools/base64_decoder.html">
+    <span class="nav-icon">🔓</span> Base64 Decoder
+  </a>
+  <a href="#" data-src="tools/base64_encoder.html">
+    <span class="nav-icon">🔒</span> Base64 Encoder
+  </a>
+</nav>
+
+<main>
+  <div id="welcome">
+    <h1>Welcome to Observe Tools</h1>
+    <p class="subtitle">A collection of utilities for working with Observe. Select a tool from the sidebar to get started.</p>
+
+    <div class="section-label">Monitors</div>
+    <div class="card-grid">
+      <div class="welcome-card" data-src="tools/export_monitor_list.html">
+        <div class="wc-icon">📋</div>
+        <div class="wc-title">Export Monitor List</div>
+        <div class="wc-desc">Fetch all monitors and export as a sortable table or CSV.</div>
+      </div>
+      <div class="welcome-card" data-src="tools/export_monitor_details.html">
+        <div class="wc-icon">🔔</div>
+        <div class="wc-title">Export Monitor Details</div>
+        <div class="wc-desc">Fetch a single monitor by ID and generate a cURL command to recreate it.</div>
+      </div>
+      <div class="welcome-card" data-src="tools/export_all_monitor_details.html">
+        <div class="wc-icon">📊</div>
+        <div class="wc-title">Export All Monitor Details</div>
+        <div class="wc-desc">Bulk fetch all monitors with full details, destinations, and copy cURL/PowerShell per row.</div>
+      </div>
+    </div>
+
+    <div class="section-label">Datasets</div>
+    <div class="card-grid">
+      <div class="welcome-card" data-src="tools/export_dataset.html">
+        <div class="wc-icon">🗄️</div>
+        <div class="wc-title">Export Dataset</div>
+        <div class="wc-desc">Fetch all datasets via the legacy v1 API and export as CSV.</div>
+      </div>
+    </div>
+
+    <div class="section-label">Tools</div>
+    <div class="card-grid">
+      <div class="welcome-card" data-src="tools/import_file.html">
+        <div class="wc-icon">⬆️</div>
+        <div class="wc-title">Import File</div>
+        <div class="wc-desc">Send any file or pasted data to Observe via HTTP ingest with gzip compression.</div>
+      </div>
+      <div class="welcome-card" data-src="tools/base64_decoder.html">
+        <div class="wc-icon">🔓</div>
+        <div class="wc-title">Base64 Decoder</div>
+        <div class="wc-desc">Decode base64 strings, including Observe copied dashboard format.</div>
+      </div>
+      <div class="welcome-card" data-src="tools/base64_encoder.html">
+        <div class="wc-icon">🔒</div>
+        <div class="wc-title">Base64 Encoder</div>
+        <div class="wc-desc">Encode JSON or text as base64 with the Observe dashboard wrapper for easy import.</div>
+      </div>
+    </div>
+  </div>
+
+  <iframe id="toolFrame" title="Tool"></iframe>
+</main>
+
+<script>
+  const welcome = document.getElementById('welcome');
+  const frame   = document.getElementById('toolFrame');
+
+  function navigate(src, activeEl) {
+    document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+    if (activeEl) activeEl.classList.add('active');
+
+    if (!src) {
+      frame.style.display = 'none';
+      welcome.style.display = 'flex';
+    } else {
+      welcome.style.display = 'none';
+      frame.style.display = 'block';
+      frame.src = src;
+    }
+  }
+
+  document.querySelectorAll('nav a[data-src]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      navigate(a.dataset.src, a);
+    });
+  });
+
+  document.querySelectorAll('.welcome-card[data-src]').forEach(card => {
+    card.addEventListener('click', () => {
+      const src = card.dataset.src;
+      const navLink = document.querySelector(`nav a[data-src="${src}"]`);
+      navigate(src, navLink);
+    });
+  });
+
+  document.getElementById('home-link').addEventListener('click', e => {
+    e.preventDefault();
+    navigate('', document.getElementById('home-link'));
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base64 Encoder — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>
+    .container { max-width: 760px; margin: 0 auto; }
+    textarea { min-height: 220px; }
+    .output-box pre { word-break: break-all; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Base64 Encoder</h1>
+  <p class="caption">Paste JSON or text to encode it as base64 for importing into Observe dashboards.</p>
+
+  <div>
+    <label for="rawInput">Content to Encode</label>
+    <textarea id="rawInput" placeholder="Paste dashboard JSON or text here..."></textarea>
+  </div>
+
+  <button class="primary full" id="encodeBtn">🔒 Encode</button>
+
+  <div class="alert" id="alertBox"></div>
+
+  <div class="output-section" id="outputSection">
+    <label>Encoded Output</label>
+    <div class="output-box">
+      <button class="copy-btn" id="copyBtn">Copy</button>
+      <pre id="outputPre"></pre>
+    </div>
+  </div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  const HEADER = "Observe Copied Dashboard\nOpenTelemetry - Host Metrics\n/* Observe!Start ";
+  const FOOTER = " Observe!End */";
+
+  document.getElementById('encodeBtn').addEventListener('click', () => {
+    const raw = document.getElementById('rawInput').value;
+    if (!raw.trim()) { showAlert('warning', 'Paste some content to encode first.'); return; }
+    hideAlert();
+    let inputStr;
+    try { const parsed = JSON.parse(raw.trim()); inputStr = JSON.stringify(parsed); }
+    catch { inputStr = raw.trim(); }
+    const result = `${HEADER}${btoa(unescape(encodeURIComponent(inputStr)))}${FOOTER}`;
+    document.getElementById('outputPre').textContent = result;
+    document.getElementById('outputSection').classList.add('show');
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', e => {
+    copyToClipboard(document.getElementById('outputPre').textContent, e.target);
+  });
+</script>
+</body>
+</html>

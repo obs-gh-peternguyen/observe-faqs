@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import File — Observe</title>
+  <link rel="stylesheet" href="../shared.css" />
+  <style>.container { max-width: 760px; margin: 0 auto; }</style>
+</head>
+<body>
+<div class="container">
+  <h1>Import File</h1>
+  <p class="caption">Send data to Observe via HTTP ingest endpoint: <code>POST /v1/http</code></p>
+
+  <div class="card">
+    <div class="row row-3">
+      <div>
+        <label for="customerId">Customer ID</label>
+        <input type="text" id="customerId" placeholder="1234567890" autocomplete="off" />
+      </div>
+      <div>
+        <label for="domain">Domain <span style="color:#555770">(optional)</span></label>
+        <input type="text" id="domain" placeholder="collect" autocomplete="off" />
+        <p class="help">Defaults to <code>collect</code></p>
+      </div>
+      <div>
+        <label for="token">Bearer Token</label>
+        <input type="password" id="token" placeholder="Paste Observe token here" autocomplete="off" />
+      </div>
+    </div>
+    <div>
+      <label for="contentType">Content Type</label>
+      <select id="contentType">
+        <option>application/json</option>
+        <option>application/x-ndjson</option>
+        <option>application/xml</option>
+        <option>application/msgpack</option>
+        <option>text/csv</option>
+        <option>application/x-csv</option>
+        <option>text/plain</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="radio-group">
+    <label><input type="radio" name="method" value="file" checked /> File Upload</label>
+    <label><input type="radio" name="method" value="url" /> URL</label>
+    <label><input type="radio" name="method" value="paste" /> Paste Contents</label>
+  </div>
+
+  <div id="panel-file" class="input-panel active">
+    <div class="file-drop" id="fileDrop">
+      <input type="file" id="fileInput" />
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:.5rem;opacity:.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div>Drag &amp; drop a file here, or <strong style="color:#6c63ff">click to browse</strong></div>
+      <div class="file-name" id="fileName"></div>
+    </div>
+  </div>
+  <div id="panel-url" class="input-panel">
+    <label for="urlInput">Public File URL</label>
+    <input type="text" id="urlInput" placeholder="https://example.com/data.json" />
+    <p class="help">Note: the remote server must allow cross-origin requests (CORS).</p>
+  </div>
+  <div id="panel-paste" class="input-panel">
+    <label for="pasteInput">Paste data here</label>
+    <textarea id="pasteInput" placeholder="Paste your data here..."></textarea>
+  </div>
+
+  <button type="submit" id="submitBtn">Submit</button>
+
+  <div class="alert" id="statusMsg"></div>
+</div>
+
+<script src="../shared.js"></script>
+<script>
+  const panels = { file: document.getElementById('panel-file'), url: document.getElementById('panel-url'), paste: document.getElementById('panel-paste') };
+  document.querySelectorAll('input[name="method"]').forEach(r => {
+    r.addEventListener('change', () => {
+      Object.entries(panels).forEach(([k, el]) => el.classList.toggle('active', k === r.value));
+    });
+  });
+
+  const fileDrop = document.getElementById('fileDrop');
+  const fileInput = document.getElementById('fileInput');
+  let selectedFile = null;
+
+  fileDrop.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    selectedFile = fileInput.files[0] || null;
+    document.getElementById('fileName').textContent = selectedFile ? selectedFile.name : '';
+  });
+  fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
+  fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
+  fileDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    fileDrop.classList.remove('dragover');
+    selectedFile = e.dataTransfer.files[0] || null;
+    document.getElementById('fileName').textContent = selectedFile ? selectedFile.name : '';
+  });
+
+  function showStatus(type, html) {
+    const el = document.getElementById('statusMsg');
+    el.className = `alert ${type} show`;
+    el.innerHTML = html;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', async () => {
+    const customerId  = document.getElementById('customerId').value.trim();
+    const domain      = document.getElementById('domain').value.trim() || 'collect';
+    const token       = document.getElementById('token').value.trim();
+    const contentType = document.getElementById('contentType').value;
+    const method      = document.querySelector('input[name="method"]:checked').value;
+
+    if (!customerId || !token) { showStatus('error', 'Customer ID and Bearer Token are required.'); return; }
+
+    const endpoint = `https://${customerId}.${domain}.observeinc.com/v1/http`;
+    let data = null, sourceLabel = '';
+
+    try {
+      if (method === 'file') {
+        if (!selectedFile) { showStatus('error', 'Please select a file.'); return; }
+        data = new Uint8Array(await selectedFile.arrayBuffer());
+        sourceLabel = selectedFile.name;
+      } else if (method === 'url') {
+        const url = document.getElementById('urlInput').value.trim();
+        if (!url) { showStatus('error', 'Please enter a URL.'); return; }
+        showStatus('info', 'Fetching file from URL…');
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Failed to fetch URL: HTTP ${res.status}`);
+        data = new Uint8Array(await res.arrayBuffer());
+        sourceLabel = url;
+      } else {
+        const text = document.getElementById('pasteInput').value;
+        if (!text.trim()) { showStatus('error', 'Please paste some data.'); return; }
+        data = new TextEncoder().encode(text);
+        sourceLabel = `${data.length.toLocaleString()} bytes pasted`;
+      }
+
+      showStatus('info', `Compressing and sending ${data.length.toLocaleString()} bytes to <code>${endpoint}</code>…`);
+      document.getElementById('submitBtn').disabled = true;
+
+      const compressed = await gzipBytes(data);
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': contentType, 'Content-Encoding': 'gzip' },
+        body: compressed,
+      });
+      document.getElementById('submitBtn').disabled = false;
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+      showStatus('success', `Sent successfully — HTTP ${resp.status} &nbsp;|&nbsp; Source: ${sourceLabel} &nbsp;|&nbsp; Endpoint: <code>${endpoint}</code>`);
+    } catch (err) {
+      document.getElementById('submitBtn').disabled = false;
+      showStatus('error', err.message || String(err));
+    }
+  });
+</script>
+</body>
+</html>
