@@ -112,6 +112,24 @@ function actionLabel(rule) {
   return `📣 ${defn.name || t || 'Action'}`;
 }
 
+/* ── Dataset ID extraction ───────────────────────────────────────────────── */
+function extractDatasetIds(detail) {
+  if (!detail) return [];
+  const stages = (detail.definition?.inputQuery?.stages) || [];
+  const seen = new Set();
+  const ids = [];
+  for (const stage of stages) {
+    let inputs = stage.input;
+    if (inputs && !Array.isArray(inputs)) inputs = [inputs];
+    if (!Array.isArray(inputs)) continue;
+    for (const inp of inputs) {
+      const dsId = inp?.datasetId;
+      if (dsId && !seen.has(dsId)) { seen.add(dsId); ids.push(dsId); }
+    }
+  }
+  return ids;
+}
+
 /* ── Monitor transform logic ─────────────────────────────────────────────── */
 function stripNulls(obj) {
   if (Array.isArray(obj)) return obj.map(stripNulls);

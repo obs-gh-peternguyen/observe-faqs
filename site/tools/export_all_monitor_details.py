@@ -84,6 +84,26 @@ def action_rule_icon(rule: dict) -> tuple[str, str]:
         return "chat", url or defn.get("name") or action_type or "Action"
 
 
+def extract_dataset_ids(detail: dict | None) -> list[str]:
+    if not detail:
+        return []
+    stages = ((detail.get("definition") or {}).get("inputQuery") or {}).get("stages") or []
+    seen: set[str] = set()
+    ids: list[str] = []
+    for stage in stages:
+        inputs = stage.get("input")
+        if isinstance(inputs, dict):
+            inputs = [inputs]
+        if not isinstance(inputs, list):
+            continue
+        for inp in inputs:
+            ds_id = (inp or {}).get("datasetId")
+            if ds_id and ds_id not in seen:
+                seen.add(ds_id)
+                ids.append(ds_id)
+    return ids
+
+
 def strip_nulls(obj):
     if isinstance(obj, list):
         return [strip_nulls(v) for v in obj]
@@ -225,6 +245,11 @@ def build_enriched_table_html(
         mid = m.get("id", "")
         detail = details_map.get(mid)
         action_rules = (detail or {}).get("actionRules") or []
+        dataset_ids = extract_dataset_ids(detail)
+        dataset_ids_html = (
+            "<br>".join(f"<span class='mono dim'>{_esc(d)}</span>" for d in dataset_ids)
+            if dataset_ids else "<span class='dim'>—</span>"
+        )
 
         # Build POST commands and stash in JS data object
         if detail:
@@ -280,6 +305,7 @@ def build_enriched_table_html(
             f"<td>{_esc(m.get('name', ''))}</td>"
             f"<td class='mono dim'>{_esc(mid)}</td>"
             f"<td class='dim sm'>{_esc(m.get('description', ''))}</td>"
+            f"<td>{dataset_ids_html}</td>"
             f"<td>{type_html}</td>"
             f"<td>{status_html}</td>"
             f"<td class='sm nowrap'>{ts_html}</td>"
@@ -288,7 +314,7 @@ def build_enriched_table_html(
             f"</tr>"
         )
 
-    headers = ["Name", "Monitor ID", "Description", "Type", "Status", "Last Modified", "Destination", "POST"]
+    headers = ["Name", "Monitor ID", "Description", "Dataset ID(s)", "Type", "Status", "Last Modified", "Destination", "POST"]
     thead = "".join(f"<th>{h}</th>" for h in headers)
     tbody = "".join(rows_html)
     post_data_js = json.dumps(post_data)
@@ -426,7 +452,7 @@ document.addEventListener('click', function(e) {{
 def build_csv(monitors: list[dict], details_map: dict[str, dict | None]) -> str:
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["Name", "Monitor ID", "Description", "Type", "Status", "Last Modified", "Destinations", "GET Response (JSON)"])
+    writer.writerow(["Name", "Monitor ID", "Description", "Dataset ID(s)", "Type", "Status", "Last Modified", "Destinations", "GET Response (JSON)"])
     for m in monitors:
         mid = m.get("id", "")
         detail = details_map.get(mid)
@@ -439,6 +465,7 @@ def build_csv(monitors: list[dict], details_map: dict[str, dict | None]) -> str:
             m.get("name", ""),
             mid,
             m.get("description", ""),
+            ", ".join(extract_dataset_ids(detail)),
             m.get("ruleKind", ""),
             "Disabled" if m.get("disabled") else "Enabled",
             nano_to_datetime(m.get("monitorVersion")),

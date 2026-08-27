@@ -75,15 +75,18 @@
   }
 
   function renderDetailTable() {
-    const hdrs = ['Name', 'Monitor ID', 'Description', 'Type', 'Status', 'Last Modified', 'Destinations', 'POST'];
+    const hdrs = ['Name', 'Monitor ID', 'Description', 'Dataset ID(s)', 'Type', 'Status', 'Last Modified', 'Destinations', 'POST'];
     const rows = monitorList.map(m => {
       const detail = detailsMap[m.id];
       const postHTML = detail
         ? `<div class="post-btns"><button class="btn-curl" data-mid="${esc(m.id)}">cURL</button><button class="btn-ps" data-mid="${esc(m.id)}">PS</button></div>`
         : `<span class="dim sm">failed</span>`;
+      const dsIds = extractDatasetIds(detail);
+      const dsHTML = dsIds.length ? dsIds.map(d => `<span class="mono dim">${esc(d)}</span>`).join('<br>') : `<span class="dim">—</span>`;
       return `<tr>
         <td>${esc(m.name)}</td><td class="mono">${esc(m.id)}</td>
         <td class="dim sm">${esc(m.description)}</td>
+        <td>${dsHTML}</td>
         <td>${typeBadge(m.ruleKind)}</td>
         <td><span class="status-badge ${m.disabled ? 'stat-disabled' : 'stat-enabled'}">${m.disabled ? 'Disabled' : 'Enabled'}</span></td>
         <td class="sm" style="white-space:nowrap;color:#a0a0b0">${esc(nanoToDatetime(m.monitorVersion))}</td>
@@ -160,11 +163,11 @@
   });
 
   document.getElementById('csvBtn').addEventListener('click', () => {
-    const hdrs = ['Name', 'Monitor ID', 'Description', 'Type', 'Status', 'Last Modified', 'Destinations', 'GET Response (JSON)'];
+    const hdrs = ['Name', 'Monitor ID', 'Description', 'Dataset ID(s)', 'Type', 'Status', 'Last Modified', 'Destinations', 'GET Response (JSON)'];
     const rows = monitorList.map(m => {
       const detail = detailsMap[m.id];
       const dests = ((detail?.actionRules) || []).map(r => r.definition?.type || 'Action').join(', ');
-      return [m.name, m.id, m.description, m.ruleKind, m.disabled ? 'Disabled' : 'Enabled', nanoToDatetime(m.monitorVersion), dests, detail ? JSON.stringify(detail) : ''];
+      return [m.name, m.id, m.description, extractDatasetIds(detail).join(', '), m.ruleKind, m.disabled ? 'Disabled' : 'Enabled', nanoToDatetime(m.monitorVersion), dests, detail ? JSON.stringify(detail) : ''];
     });
     downloadBlob(buildCSVString(hdrs, rows), 'observe_all_monitor_details.csv', 'text/csv');
   });
