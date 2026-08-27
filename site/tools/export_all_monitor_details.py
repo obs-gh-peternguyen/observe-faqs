@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -10,6 +11,9 @@ import streamlit as st
 import yaml
 
 _ACTION_ORDER = {"Email": 0, "Webhook": 1, "PagerDuty": 2, "Slack": 3}
+_DETAIL_BATCH_SIZE = 500
+_DETAIL_BATCH_WORKERS = 20
+_DETAIL_BATCH_PAUSE_SECONDS = 30
 
 
 def _literal_representer(dumper: yaml.Dumper, data: str):
@@ -540,23 +544,34 @@ if st.session_state.get("all_mon_list") is not None:
             details_map: dict[str, dict | None] = {}
             total = len(monitors)
             progress_bar = st.progress(0, text="Starting…")
-            status_text = st.empty()
             done = 0
-            with ThreadPoolExecutor(max_workers=20) as pool:
-                futures = {
-                    pool.submit(fetch_monitor_detail, cid, dom, tok, m.get("id", "")): m
-                    for m in monitors
-                }
-                for future in as_completed(futures):
-                    m = futures[future]
-                    mid = m.get("id", "")
-                    try:
-                        details_map[mid] = future.result()
-                    except Exception:
-                        details_map[mid] = None
-                    done += 1
-                    progress_bar.progress(done / total, text=f"{done}/{total} fetched…")
-            status_text.empty()
+            batches = [
+                monitors[i:i + _DETAIL_BATCH_SIZE]
+                for i in range(0, total, _DETAIL_BATCH_SIZE)
+            ]
+            for batch_idx, batch in enumerate(batches):
+                with ThreadPoolExecutor(max_workers=_DETAIL_BATCH_WORKERS) as pool:
+                    futures = {
+                        pool.submit(fetch_monitor_detail, cid, dom, tok, m.get("id", "")): m
+                        for m in batch
+                    }
+                    for future in as_completed(futures):
+                        m = futures[future]
+                        mid = m.get("id", "")
+                        try:
+                            details_map[mid] = future.result()
+                        except Exception:
+                            details_map[mid] = None
+                        done += 1
+                        progress_bar.progress(done / total, text=f"{done}/{total} fetched…")
+                is_last_batch = batch_idx == len(batches) - 1
+                if not is_last_batch:
+                    for remaining in range(_DETAIL_BATCH_PAUSE_SECONDS, 0, -1):
+                        progress_bar.progress(
+                            done / total,
+                            text=f"{done}/{total} fetched — pausing {remaining}s before next batch…",
+                        )
+                        time.sleep(1)
             progress_bar.progress(1.0, text="Done!")
             st.session_state["all_mon_details"] = details_map
             failed = sum(1 for v in details_map.values() if v is None)

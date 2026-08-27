@@ -131,15 +131,48 @@
     const total = monitorList.length;
     const fill  = document.getElementById('progressFill');
     const label = document.getElementById('progressLabel');
-    const results = await Promise.allSettled(monitorList.map(m =>
-      fetch(`https://${buildObserveHost(cid, dom)}/v1/monitors/${m.id}`, { headers: observeAuthHeaders(cid, tok) })
-        .then(r => r.ok ? r.json() : null).catch(() => null)
-    ));
-    results.forEach((r, i) => {
-      detailsMap[monitorList[i].id] = r.status === 'fulfilled' ? r.value : null;
-      fill.style.width = `${Math.round(100 * (i + 1) / total)}%`;
-      label.textContent = `${i + 1}/${total} fetched…`;
-    });
+
+    const BATCH_SIZE = 500;
+    const CONCURRENCY = 20;
+    const BATCH_PAUSE_SECONDS = 30;
+    let done = 0;
+
+    async function fetchOne(m) {
+      try {
+        const r = await fetch(`https://${buildObserveHost(cid, dom)}/v1/monitors/${m.id}`, { headers: observeAuthHeaders(cid, tok) });
+        detailsMap[m.id] = r.ok ? await r.json() : null;
+      } catch { detailsMap[m.id] = null; }
+      done++;
+      fill.style.width = `${Math.round(100 * done / total)}%`;
+      label.textContent = `${done}/${total} fetched…`;
+    }
+
+    async function runBatch(batch) {
+      let idx = 0;
+      async function worker() {
+        while (idx < batch.length) {
+          const m = batch[idx++];
+          await fetchOne(m);
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batch.length) }, worker));
+    }
+
+    function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+      const batch = monitorList.slice(i, i + BATCH_SIZE);
+      await runBatch(batch);
+
+      const isLastBatch = i + BATCH_SIZE >= total;
+      if (!isLastBatch) {
+        for (let remaining = BATCH_PAUSE_SECONDS; remaining > 0; remaining--) {
+          label.textContent = `${done}/${total} fetched — pausing ${remaining}s before next batch…`;
+          await sleep(1000);
+        }
+      }
+    }
+
     label.textContent = 'Done!';
     const failed = Object.values(detailsMap).filter(v => !v).length;
     if (failed) showAlert('warning', `${failed} monitor(s) failed to fetch details.`);
